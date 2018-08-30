@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Kostroma analytics</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">SS
+    <link href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css" rel="stylesheet" type="text/css" />
+    <style>
+        html,
+        body,
+        h1,
+        h2,
+        h3,
+        h4,
+        h5 {
+            font-family: "Raleway", sans-serif
+        }
+    </style>
+
+    <style>
+        #map {
+            width: 400px;
+            height: 300px;
+        }
+
+        .button1 {
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+        }
+    </style>
+
+</head>
+
+<body class="w3-light-grey">
+    <!-- Top container -->
+    <div class="w3-bar w3-top w3-black w3-large" style="z-index:4">
+        <a href="http://www.ksu.edu.ru/" class="w3-bar-item w3-button w3-hover-none w3-hover-text-light-grey">
+            <b>
+                <i class="fa fa-bar-chart"></i> Kostroma analytics</b>
+        </a>
+    </div>
+
+
+    <!-- !PAGE CONTENT! -->
+    <div class="w3-main" style="margin-top:43px;">
+        <div class="w3-panel" style="padding-top:10px">
+            <div class="w3-row-padding">
+
+                <!--<div id="map" class="w3-twothird"></div>-->
+                <div class="w3-twothird">
+                    <div class="ct-chart ct-golden-section"></div>
+                </div>
+
+
+
+                <script>
+                    var map, heatmap;
+                    function initMap() {
+                        map = new google.maps.Map(document.getElementById('map'), {
+                            zoom: 13,
+                            center: { lat: 57.7673536, lng: 40.927612899999986 }
+                            // ,mapTypeId: 'satellite'
+                        });
+
+                        // DATA from serv
+                        var result_yandex = '{{ result_yandex }}';
+
+                        // Search
+                        if (result_yandex.length > 0) {
+                            var res_yandex = result_yandex.replace(/&#34;/gi, '"');
+                            var w = res_yandex.replace(/ ""/gi, " \"'");
+                            w = w.replace(/""/gi, "'\"");
+
+                            data = JSON.parse(w)
+
+
+                            // Yandex search
+                            var yandex_res_data = data["yandex_data"];
+                            var yandex_result_div = document.getElementById('yandex_result_div')
+                            yandex_result_div.innerHTML = "";
+                            var cities = [];
+                            var phrases = [];
+                            var series = [];
+                            var seri = [];
+
+                            // var search_phrases = yandex_res_data[0]['SearchedWith'];
+                            // for (var n = 0; n < search_phrases.length; n++){
+                            //     phrases.push(search_phrases[n]["Phrase"]);
+                            // }
+
+
+                            for (var i = 0; i < yandex_res_data.length; i++) {
+                                var city = yandex_res_data[i]['city'];
+                                cities.push(city);
+                                searched_with = yandex_res_data[i]['SearchedWith'];
+
+                                seri = [];
+                                for (var j = 0; j < searched_with.length; j++) {
+                                    yandex_result_div.innerHTML += city + " => " + searched_with[j]["Phrase"] + " : " + searched_with[j]["Shows"] + "<br>";
+
+                                    if (i === 0) {
+                                        phrases.push(searched_with[j]["Phrase"]);
+                                    }
+                                    seri.push(searched_with[j]["Shows"]);
+
+
+                                    setTimeout(geocode_heatmap(searched_with[j]["Phrase"]), 100)
+
+                                    function geocode_heatmap(phrase) {
+                                        var places = [];
+                                        var geocoder = new google.maps.Geocoder;
+
+                                        geocoder.geocode({ "address": phrase }, function (results, status) {
+                                            if (status === 'OK') {
+                                                latlng = results[0].geometry.location;
+                                                places.push([latlng.lat(), latlng.lng()]);
+
+                                                // var marker = new google.maps.Marker({
+                                                //       position: latlng,
+                                                //       label: phrase,
+                                                //       map: map
+                                                //     });
+                                            }
+                                            if (status !== 'OK' && status !== 'OVER_QUERY_LIMIT' && status !== 'ZERO_RESULTS') {
+                                                window.alert('Geocoder failed due to: ' + status);
+                                                return;
+                                            }
+
+                                            if (j == searched_with.length) {
+                                                heatmap = new google.maps.visualization.HeatmapLayer({
+                                                    data: getPoints(places),
+                                                    map: map
+                                                });
+                                                // changeGradient(heatmap);
+                                                // changeRadius(heatmap);
+
+                                            }
+                                        });
+                                    }
+                                    series.push(seri);
+                                }
+                            }
+                            var chart = new Chartist.Line('.ct-chart', {
+                                labels: phrases,
+                                series: series
+                            }, {
+                                    low: 0
+                                });
+
+
+
+                            // Let's put a sequence number aside so we can use it in the event callbacks
+                            var seq = 0,
+                                delays = 80,
+                                durations = 500;
+
+                            // Once the chart is fully created we reset the sequence
+                            chart.on('created', function () {
+                                seq = 0;
+                            });
+
+                            // On each drawn element by Chartist we use the Chartist.Svg API to trigger SMIL animations
+                            chart.on('draw', function (data) {
+                                seq++;
+
+                                if (data.type === 'line') {
+                                    // If the drawn element is a line we do a simple opacity fade in. This could also be achieved using CSS3 animations.
+                                    data.element.animate({
+                                        opacity: {
+                                            // The delay when we like to start the animation
+                                            begin: seq * delays + 1000,
+                                            // Duration of the animation
+                                            dur: durations,
+                                            // The value where the animation should start
+                                            from: 0,
+                                            // The value where it should end
+                                            to: 1
+                                        }
+                                    });
+                                } else if (data.type === 'label' && data.axis === 'x') {
+                                    data.element.animate({
+                                        y: {
+                                            begin: seq * delays,
+                                            dur: durations,
+                                            from: data.y + 100,
+                                            to: data.y,
+                                            // We can specify an easing function from Chartist.Svg.Easing
+                                            easing: 'easeOutQuart'
+                                        }
+                                    });
+                                } else if (data.type === 'label' && data.axis === 'y') {
+                                    data.element.animate({
+                                        x: {
+                                            begin: seq * delays,
+                                            dur: durations,
+                                            from: data.x - 100,
+                                            to: data.x,
+                                            easing: 'easeOutQuart'
+                                        }
+                                    });
+                                } else if (data.type === 'point') {
+                                    data.element.animate({
+                                        x1: {
+                                            begin: seq * delays,
+                                            dur: durations,
+                                            from: data.x - 10,
+                                            to: data.x,
+                                            easing: 'easeOutQuart'
+                                        },
+                                        x2: {
+                                            begin: seq * delays,
+                                            dur: durations,
+                                            from: data.x - 10,
+                                            to: data.x,
+                                            easing: 'easeOutQuart'
+                                        },
+                                        opacity: {
+                                            begin: seq * delays,
+                                            dur: durations,
+                                            from: 0,
+                                            to: 1,
+                                            easing: 'easeOutQuart'
+                                        }
+                                    });
+                                } else if (data.type === 'grid') {
+                                    // Using data.axis we get x or y which we can use to construct our animation definition objects
+                                    var pos1Animation = {
+                                        begin: seq * delays,
+                                        dur: durations,
+                                        from: data[data.axis.units.pos + '1'] - 30,
+                                        to: data[data.axis.units.pos + '1'],
+                                        easing: 'easeOutQuart'
+                                    };
+
+                                    var pos2Animation = {
+                                        begin: seq * delays,
+                                        dur: durations,
+                                        from: data[data.axis.units.pos + '2'] - 100,
+                                        to: data[data.axis.units.pos + '2'],
+                                        easing: 'easeOutQuart'
+                                    };
+
+                                    var animations = {};
+                                    animations[data.axis.units.pos + '1'] = pos1Animation;
+                                    animations[data.axis.units.pos + '2'] = pos2Animation;
+                                    animations['opacity'] = {
+                                        begin: seq * delays,
+                                        dur: durations,
+                                        from: 0,
+                                        to: 1,
+                                        easing: 'easeOutQuart'
+                                    };
+
+                                    data.element.animate(animations);
+                                }
+                            });
+
+                            // For the sake of the example we update the chart every time it's created with a delay of 10 seconds
+                            chart.on('created', function () {
+                                if (window.__exampleAnimateTimeout) {
+                                    clearTimeout(window.__exampleAnimateTimeout);
+                                    window.__exampleAnimateTimeout = null;
+                                }
+                                //   window.__exampleAnimateTimeout = setTimeout(chart.update.bind(chart), 12000);
+                            });
+
+                        }
+                        function changeGradient(heatmap) {
+                            var gradient = [
+                                'rgba(0, 255, 255, 0)',
+                                'rgba(0, 255, 255, 1)',
+                                'rgba(0, 191, 255, 1)',
+                                'rgba(0, 127, 255, 1)',
+                                'rgba(0, 63, 255, 1)',
+                                'rgba(0, 0, 255, 1)',
+                                'rgba(0, 0, 223, 1)',
+                                'rgba(0, 0, 191, 1)',
+                                'rgba(0, 0, 159, 1)',
+                                'rgba(0, 0, 127, 1)',
+                                'rgba(63, 0, 91, 1)',
+                                'rgba(127, 0, 63, 1)',
+                                'rgba(191, 0, 31, 1)',
+                                'rgba(255, 0, 0, 1)'
+                            ]
+                            heatmap.set('gradient', heatmap.get('gradient') ? null : gradient);
+                        }
+
+                        function changeRadius(heatmap) {
+                            heatmap.set('radius', heatmap.get('radius') ? null : 20);
+                        }
+                        function getPoints(coordinates) {
+                            var points = [];
+                            for (var i = 0; i < coordinates.length; i++) {
+                                points.push(new google.maps.LatLng(coordinates[i][0], coordinates[i][1]));
+                            }
+                            return points;
+                        }
+                        function getLatLng(coordinates) {
+                            return { lat: coordinates[0], lng: coordinates[1] };
+                        }
+                    }
+                </script>
+
+                <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyALcw1zv6QPl7cYd_hxd4A7KU-kkovMDMk&libraries=visualization&callback=initMap">
+                </script>
+
+                <div class="w3-container w3-third">
+                    <h5>Write your query</h5>
+                    <form action="{{ url_for('datahackkostroma') }}" method="POST">
+                        <div class="form-group">
+                            <input type="text" class="w3-input" id="exampleInputLender1" placeholder="Cities" name="cities" value="{{request.form.get('cities','')}}">
+                        </div>
+
+                        <div class="form-group">
+                            <input type="text" class="w3-input" id="exampleInputLender2" placeholder="Phrases" name="phrases" value="{{request.form.get('phrases','')}}">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w3-black button1" style="margin: 10px 0px 0px 0px">RUN</button>
+                    </form>
+
+
+                    <div style="padding:5px; margin-top: 10px; border: 1px solid #A1A1A1;">
+                        <b style="font-size: 16px;"> Yandex data from last month</b>
+                        <div id="yandex_result_div" style="white-space: pre;"></div>
+                    </div>
+
+
+                    <script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
+                    <!--<div class="ct-chart ct-golden-section"></div>-->
+                    <div id="map"></div>
+                    <!--style="width:100%"></div>-->
+                    <div id="lines"> </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="w3-container w3-padding-6 w3-dark-grey">
+            <h4>From KSU with love
+                <3</h4>
+        </footer>
+        <!-- End page content -->
+    </div>
+</body>
+
+</html>
