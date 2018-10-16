@@ -63,7 +63,7 @@ def checkRep ():
     response = urlopen(url,jdata.encode())
     responsedata = json.loads(response.read().decode('utf-8', 'ignore'))
 
-    return responsedata['data'][len(responsedata['data'])-1]['StatusReport']
+    return responsedata['data'][-1]['StatusReport']
 
 # Чтение отчета
 def readRep (query_id, filename):
